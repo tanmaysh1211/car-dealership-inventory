@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --color-road: #e8ebe7;
+  --color-ink: #12181b;
+    --color-fg: #12181b;
+      /* text colour: flips in dark mode */
+      --color-surface: #ffffff;
+      /* cards, inputs, modals: flips in dark mode */
+  --color-pine: #0d5c46;
+  --color-pine-dark: #0a4636;
+  --color-plate: #f4d03f;
+  /* number-plate yellow */
+  --color-signal: #b4531a;
+  /* low stock */
+  --color-brake: #b3261e;
+  /* errors, out of stock, delete */
+}
+
+body {
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  background:
+    radial-gradient(1100px 560px at 100% -10%, #bfe3d2 0%, transparent 60%),
+    radial-gradient(900px 520px at -10% 110%, #f7e8a8 0%, transparent 55%),
+    #eaf0ed;
+  background-attachment: fixed;
+}
+
+/* Every primary (bg-pine) button gets the same green gradient + soft glow. */
+button.bg-pine {
+  background-image: linear-gradient(135deg, #0d5c46 0%, #13966f 100%);
+  box-shadow: 0 8px 18px -8px rgba(13, 92, 70, 0.7);
+  transition: filter 0.15s, transform 0.15s;
+}
+
+button.bg-pine:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+button.bg-pine:disabled {
+  background-image: none;
+  box-shadow: none;
+}
+
+/* The one orchestrated motion on the sign-in screen: the car drives in once. */
+@keyframes drive-in {
+  from {
+    transform: translateX(-80px);
+    opacity: 0;
+  }
+
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.drive-in {
+  animation: drive-in 1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+:focus-visible {
+  outline: 3px solid #13966f;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Cards slide up one after another when the grid first appears. */
+@keyframes card-in {
+  from {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.card-in {
+  animation: card-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* ---------- Dark mode: toggled by the `dark` class on <html> ---------- */
+.dark {
+  color-scheme: dark;
+  --color-fg: #e8eeeb;
+  --color-surface: #172228;
+}
+
+.dark body {
+  background:
+    radial-gradient(1100px 560px at 100% -10%, rgba(19, 150, 111, 0.28) 0%, transparent 60%),
+    radial-gradient(900px 520px at -10% 110%, rgba(244, 208, 63, 0.09) 0%, transparent 55%),
+    #0b1114;
+  background-attachment: fixed;
+}
+
+.dark input,
+.dark select {
+  background-color: #1d2b32;
+}
+
+.dark .text-pine {
+  color: #4fd1a5;
+}
+
+.dark .text-brake {
+  color: #ff8a82;
+}
+
+.dark .ring-black\/5 {
+  --tw-ring-color: rgb(255 255 255 / 0.09);
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}

@@ -1,0 +1,83 @@
+
+> car-dealership-backend@1.0.0 coverage
+> vitest run --coverage
+
+
+ RUN  v5.0.5 D:/Project - Part - 3/car-dealership/backend
+      Coverage enabled with v8
+
+◇ injected env (2) from .env.test
+stderr | src/tests/auth.test.ts
+◇ injected env (0) from .env.test
+
+ ✓ src/tests/auth.test.ts (18 tests) 4607ms
+   ✓ POST /api/auth/register (11)
+     ✓ creates a USER and never returns the password hash 635ms
+     ✓ ignores a role sent by the client (no self-promotion to ADMIN) 325ms
+     ✓ rejects a duplicate email (case-insensitive) with 409 312ms
+   ✓ POST /api/auth/login (5)
+     ✓ returns a JWT and the user for valid credentials 564ms
+     ✓ rejects a wrong password with 401 560ms
+     ✓ rejects an unknown email with the same 401 message (no user enumeration) 586ms
+     ✓ the issued token works on a protected route 574ms
+stderr | src/tests/vehicles.test.ts
+◇ injected env (0) from .env.test
+
+ ✓ src/tests/vehicles.test.ts (21 tests) 2633ms
+   ✓ POST /api/vehicles (10)
+     ✓ lets an admin add a vehicle 405ms
+stderr | src/tests/search.test.ts
+◇ injected env (0) from .env.test
+
+ ✓ src/tests/search.test.ts (13 tests) 1556ms
+   ✓ GET /api/vehicles/search (13)
+     ✓ requires authentication 345ms
+stderr | src/tests/inventory.test.ts
+◇ injected env (0) from .env.test
+
+ ✓ src/tests/inventory.test.ts (15 tests) 1124ms
+   ✓ POST /api/vehicles/:id/purchase (7)
+     ✓ never oversells under concurrent purchases 300ms
+stderr | src/tests/middleware.test.ts
+◇ injected env (0) from .env.test
+
+ ✓ src/tests/middleware.test.ts (8 tests) 1273ms
+   ✓ authenticate middleware (7)
+     ✓ 401 when no token is sent 435ms
+
+ Test Files  5 passed (5)
+      Tests  75 passed (75)
+   Start at  16:53:47
+   Duration  19.34s (tests 67%, setup 30%, worker 1%, transform 1%)
+
+    Isolate  5 workers spawned · ~309ms startup each (spawn + environment, per file)
+             at least ~1.23s faster with isolate: false — reuses workers across files instead of one per file
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   95.65 |     87.5 |     100 |   96.15 |                   
+ src               |     100 |      100 |     100 |     100 |                   
+  app.ts           |     100 |      100 |     100 |     100 |                   
+  errors.ts        |     100 |      100 |     100 |     100 |                   
+  validate.ts      |     100 |      100 |     100 |     100 |                   
+ src/config        |     100 |    66.66 |     100 |     100 |                   
+  env.ts           |     100 |    66.66 |     100 |     100 | 4-9               
+ src/db            |     100 |      100 |     100 |     100 |                   
+  pool.ts          |     100 |      100 |     100 |     100 |                   
+ src/middleware    |    87.5 |    84.21 |     100 |   90.47 |                   
+  authenticate.ts  |     100 |      100 |     100 |     100 |                   
+  ...orizeAdmin.ts |     100 |      100 |     100 |     100 |                   
+  errorHandler.ts  |      70 |     62.5 |     100 |   77.77 | 18-19             
+ src/modules/auth  |   89.65 |    83.33 |     100 |      92 |                   
+  ...repository.ts |     100 |      100 |     100 |     100 |                   
+  auth.routes.ts   |     100 |      100 |     100 |     100 |                   
+  auth.schemas.ts  |     100 |      100 |     100 |     100 |                   
+  auth.service.ts  |      80 |       75 |     100 |   83.33 | 27-28             
+ ...dules/vehicles |   98.14 |    97.14 |     100 |   97.75 |                   
+  ...repository.ts |   96.36 |    95.45 |     100 |   95.55 | 117-118           
+  ...cle.routes.ts |     100 |      100 |     100 |     100 |                   
+  ...le.schemas.ts |     100 |      100 |     100 |     100 |                   
+  ...le.service.ts |     100 |      100 |     100 |     100 |                   
+-------------------|---------|----------|---------|---------|-------------------
