@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Request, Router } from 'express';
 import { authenticate } from '../../middleware/authenticate';
 import { authorizeAdmin } from '../../middleware/authorizeAdmin';
 import { validate } from '../../validate';
@@ -8,6 +8,9 @@ import {
 } from './vehicle.schemas';
 
 export const vehicleRouter = Router();
+
+/** Reads and validates the :id route parameter. */
+const vehicleId = (req: Request) => validate(idParamSchema, req.params).id;
 
 // Every vehicle endpoint requires a valid JWT.
 vehicleRouter.use(authenticate);
@@ -22,7 +25,7 @@ vehicleRouter.get('/search', async (req, res) => {
 });
 
 vehicleRouter.get('/:id', async (req, res) => {
-  const { id } = validate(idParamSchema, req.params);
+  const id = vehicleId(req);
   res.json({ vehicle: await service.getVehicle(id) });
 });
 
@@ -31,23 +34,23 @@ vehicleRouter.post('/', authorizeAdmin, async (req, res) => {
 });
 
 vehicleRouter.put('/:id', authorizeAdmin, async (req, res) => {
-  const { id } = validate(idParamSchema, req.params);
+  const id = vehicleId(req);
   res.json({ vehicle: await service.updateVehicle(id, validate(updateVehicleSchema, req.body)) });
 });
 
 vehicleRouter.delete('/:id', authorizeAdmin, async (req, res) => {
-  const { id } = validate(idParamSchema, req.params);
+  const id = vehicleId(req);
   await service.deleteVehicle(id);
   res.status(204).end();
 });
 
 vehicleRouter.post('/:id/purchase', async (req, res) => {
-  const { id } = validate(idParamSchema, req.params);
+  const id = vehicleId(req);
   res.status(201).json(await service.purchaseVehicle(req.user!.id, id));
 });
 
 vehicleRouter.post('/:id/restock', authorizeAdmin, async (req, res) => {
-  const { id } = validate(idParamSchema, req.params);
+  const id = vehicleId(req);
   const { amount } = validate(restockSchema, req.body);
   res.json({ vehicle: await service.restockVehicle(id, amount) });
 });
