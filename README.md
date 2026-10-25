@@ -65,7 +65,7 @@ car-dealership/
 ├── backend/
 │   ├── sql/schema.sql                 # idempotent schema (users, vehicles, purchases)
 │   └── src/
-│       ├── app.ts, server.ts
+│       ├── app.ts, server.ts,error.ts,validate.ts
 │       ├── config/env.ts
 │       ├── db/                        # pool, migrate, seed
 │       ├── middleware/                # authenticate, authorizeAdmin, errorHandler
@@ -76,7 +76,7 @@ car-dealership/
 │       └── tests/                     # *.test.ts, helpers, setup
 ├── frontend/
 │   └── src/
-│       ├── api.ts, types.ts
+│       ├── api.ts, types.ts,App.tsx,index.css,main.tsx
 │       ├── context/                   # AuthContext, ToastContext
 │       ├── components/                # VehicleCard, SearchFilters, Navbar, modals, ...
 │       └── pages/                     # Login, Register, Dashboard
@@ -89,8 +89,8 @@ car-dealership/
 ## Getting started
 
 ### Prerequisites
-- Node.js 20 or newer
-- PostgreSQL 14 or newer, running locally
+- Node.js version 22.14.0
+- PostgreSQL version 16.4
 - Git
 
 ### 1. Clone
@@ -263,28 +263,36 @@ Out-of-stock cars are greyed out with a disabled Purchase button.
 The full chat history is linked in [PROMPTS.md](PROMPTS.md).
 
 ### Which AI tools I used
-I used **Claude** (Anthropic, through claude.ai) for this project. [EDIT: add any other tool you really used, such as Copilot or ChatGPT, or delete this note.]
+I used **Claude** (Anthropic, through claude.ai) for planning, code, tests, debugging and the UI. I used no other AI tool.
 
 ### How I used it
 - **Planning.** I pasted the kata brief and asked Claude for a step-by-step plan. We agreed on the stack (Node, TypeScript, Express, PostgreSQL, React, Tailwind, Vitest) and the order of work.
 - **Backend code and tests.** Claude generated the first version of the API (auth, vehicles, search, purchase, restock), the SQL schema, the seed script and the test suite. I ran everything on my own machine with a local PostgreSQL install. Later, Claude drafted the tests for two extra endpoints, which I committed and ran before writing the code.
-- **Design choices it proposed.** Atomic stock updates, a purchase-history table, ignoring any `role` sent at registration, and a concurrency test. [EDIT: say which of these you understood and agreed with, and why.]
+- **Design choices it proposed.** Claude proposed four ideas that shaped the backend. I agreed with all of them:
+  - *Atomic stock update.* Two buyers could read "1 in stock" at the same moment and both buy the last car. One `UPDATE ... WHERE quantity > 0` lets the database decide, so only one of them succeeds.
+  - *Purchase-history table.* It records who bought what and the price at the time of sale, and it survives when a vehicle is deleted.
+  - *Ignoring `role` at registration.* Otherwise anyone could register as an admin by sending `"role": "ADMIN"`.
+  - *Concurrency test.* It sends 10 simultaneous purchases for 3 cars and checks exactly 3 succeed. It proves the first idea works.
 - **Frontend.** Claude built the React and Tailwind screens, the card design with car illustrations, search chips, dark mode and the logout confirmation. I tested them in the browser and asked for changes when something looked wrong (for example the banner overlapping a button, and browser password pop-ups on the login form).
 - **Debugging.** I pasted terminal errors and screenshots into the chat. Examples: a leftover Prisma `.env`, a missing `.env.test` that Vitest hid behind a confusing startup error, and database password setup on Windows.
 - **Git history.** I had Claude help me plan the commit sequence and write the commit messages. Every AI-assisted commit has a `Co-authored-by` trailer.
 
 ### How I handled TDD with AI
-The first version of the app and its tests was drafted together with Claude and committed as a baseline, so that early history is not red-green. After that I added two backend features test-first: I had Claude draft the failing tests, ran them to watch them fail, committed them, then wrote the minimum code to pass and refactored. [EDIT: say how much you wrote or changed yourself, and what you learned.]
+I created the first version of the app and its tests with Claude, so that part did not follow the TDD process. I decided to keep it as it was and use TDD for two new backend features.
+For each feature, Claude helped me write the tests. I ran them first and confirmed they failed: 3 tests failed for GET /api/vehicles/:id and 4 for GET /api/purchases/mine. Then I added the code needed to make the tests pass and ran the full test suite again. After that, I refactored the code by creating a reusable vehicleId helper and fixing a file-name typo.
+I learned that tests should fail for the correct reason before implementing a feature. If a test passes immediately, it does not prove that the new code works as expected.
 
 ### What I checked, changed or rejected
-- [EDIT: for example, "I read each test and the SQL for the purchase query, and can explain why `WHERE quantity > 0` prevents overselling."]
-- [EDIT: for example, "We dropped Prisma for plain `pg` because ..."]
-- [EDIT: anything you changed in the generated code or the UI, and why.]
+- I ran the tests and generated the coverage report on my own computer because the first report was generated in Claude's environment. I replaced it with my own results.
+- I removed Prisma because its generated configuration files were causing confusion. Instead, I used `pg` with SQL queries to connect to PostgreSQL.
+- I made several UI improvements based on what I noticed while using the app, including improving the design, fixing a banner that overlapped a button, preventing browser password pop-ups on the login form, adding dark mode, adding a logout confirmation, and improving hover effects.
+- I decided to keep the existing backend code and use TDD for two new features instead of starting the project history over.
+- Before uploading the project to GitHub, I changed my database password and JWT secret and checked that no `.env` files containing secrets would be uploaded.
 
 ### Reflection
 - **What AI did well:** it removed a lot of boilerplate, suggested edge cases I might not have thought of (concurrent purchases, role escalation at registration, SQL wildcard characters in search) and sped up the UI work considerably.
-- **Where it needed correction:** [EDIT: your real examples, such as setup steps that did not match my machine, or something I had to debug myself].
-- **What I learned:** [EDIT: for example JWT authentication flow, atomic SQL updates, how the red-green-refactor loop works, writing integration tests with Supertest].
+- **Where it needed correction:** The first plan used Prisma, but it did not fit my setup, so I switched to using `pg` and SQL queries. Some instructions also assumed I had created a `.env.test` file, which I hadn't. This caused a confusing `charCodeAt` error in Vitest, so I had to investigate and find the actual problem. Fixing the browser password pop-up also took two attempts. Claude initially suggested rebuilding the Git history, but I decided to keep the existing code and use TDD for the new features instead. I also made a typo in a file name (`puchase.service.ts`) while copying the code and corrected it in a refactor commit.
+- **What I learned:** how the red → green → refactor loop works and why a failing test must fail for the right reason; how JWT login and admin-only routes work; how to write integration tests with Supertest against a real database; and how to write git commits with a `Co-authored-by` trailer.
 - **Limits I noticed:** AI output can look confident and still be wrong, so I ran every test and every screen myself instead of trusting it. I can walk through any file in this repository.
 
 ## Known limitations and future work
