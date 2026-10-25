@@ -4,7 +4,7 @@ A full-stack inventory app for a car dealership, built as a TDD kata. Customers 
 
 - **Backend:** REST API in Node.js, TypeScript and Express, backed by PostgreSQL, secured with JWT.
 - **Frontend:** React single-page app styled with Tailwind CSS.
-- **Tests:** 74 automated tests (Vitest and Supertest) running against a real PostgreSQL test database, including a concurrency test that proves the stock can never be oversold.
+- **Tests:** 85 automated tests (Vitest and Supertest) running against a real PostgreSQL test database, including a concurrency test that proves the stock can never be oversold.
 
 ## Table of contents
 1. [Features](#features)
@@ -27,6 +27,7 @@ A full-stack inventory app for a car dealership, built as a TDD kata. Customers 
 - Purchase a vehicle: stock drops by one immediately; the button is disabled at zero stock
 - Light and dark mode, remembered between visits
 - Log out with a confirmation dialog
+- API only for now: view one vehicle (`GET /api/vehicles/:id`) and your own purchase history (`GET /api/purchases/mine`)
 
 **Admins only** (enforced by the API, not just hidden in the UI)
 - Add, edit and delete vehicles (delete asks for confirmation)
@@ -48,11 +49,11 @@ The backend is layered: **routes → services → repositories**, with middlewar
 - `repositories` are the only place that talks to PostgreSQL.
 
 Decisions worth knowing about:
-- **Atomic purchases.** The stock check and decrement are one conditional statement, `UPDATE vehicles SET quantity = quantity - 1 WHERE id = $1 AND quantity > 0`, inside a transaction together with the purchase record. A database `CHECK (quantity >= 0)` is a second safety net. A test fires 10 simultaneous purchases at a vehicle with 3 in stock and asserts exactly 3 succeed.
+- **Atomic purchases.** The stock check and decrement are one conditional statement, `UPDATE vehicles SET quantity = quantity - 1 WHERE id = $1 AND quantity > 0`, inside a transaction together with the purchase record. A database `CHECK (quantity >= 0)` is a second safety net. A test fires 10 simultaneous purchases at a vehicle with 3 in stock and asserts exactly 3 succeed. Another test checks the stock decrement is rolled back if recording the purchase fails.
 - **Roles.** Public registration always creates a `USER`; any `role` sent by the client is ignored. Admins come from the seed script.
 - **Admin-only writes.** `DELETE` and restock are admin-only as the brief requires. I also restricted `POST` and `PUT /api/vehicles` to admins (stricter than the brief) to match the requirement of admin forms for adding and updating.
 - **`GET /api/vehicles` returns out-of-stock vehicles too**, because the UI must show them with a disabled Purchase button.
-- **Purchase history.** A `purchases` table records who bought what and at what price. If a vehicle is later deleted, the purchase row is kept.
+- **Purchase history.** A `purchases` table records who bought what and at what price, and `GET /api/purchases/mine` lists the caller's purchases, newest first. If a vehicle is later deleted, the purchase row is kept (its vehicle link is cleared).
 - **Money.** Prices are `NUMERIC(12,2)` in the database and returned as numbers by the API.
 - **No user enumeration.** Login returns the same 401 message for an unknown email and a wrong password.
 - **Token storage trade-off.** The JWT is kept in `localStorage` for simplicity, which is exposed to XSS. A production app should prefer an HTTP-only, secure cookie with CSRF protection.
@@ -70,7 +71,8 @@ car-dealership/
 │       ├── middleware/                # authenticate, authorizeAdmin, errorHandler
 │       ├── modules/
 │       │   ├── auth/                  # routes, service, repository, schemas
-│       │   └── vehicles/              # routes, service, repository, schemas
+│       │   ├── vehicles/              # routes, service, repository, schemas
+│       │   └── purchases/             # routes, service, repository
 │       └── tests/                     # *.test.ts, helpers, setup
 ├── frontend/
 │   └── src/
@@ -160,7 +162,7 @@ These are local development credentials only. Change `ADMIN_EMAIL` and `ADMIN_PA
 | frontend | `npm run build` | type-check and build for production |
 
 ## API reference
-All `/api/vehicles` routes need the header `Authorization: Bearer <token>`.
+All `/api/vehicles` and `/api/purchases` routes need the header `Authorization: Bearer <token>`.
 
 | Method | Endpoint | Access | Description |
 |---|---|---|---|
@@ -168,11 +170,13 @@ All `/api/vehicles` routes need the header `Authorization: Bearer <token>`.
 | POST | `/api/auth/login` | public | Returns `{ token, user }` |
 | GET | `/api/vehicles` | any user | List all vehicles |
 | GET | `/api/vehicles/search` | any user | Query: `make`, `model`, `category`, `minPrice`, `maxPrice` |
+| GET | `/api/vehicles/:id` | any user | Get one vehicle |
 | POST | `/api/vehicles` | admin | Add a vehicle |
 | PUT | `/api/vehicles/:id` | admin | Update any subset of fields |
 | DELETE | `/api/vehicles/:id` | admin | Delete a vehicle (204) |
 | POST | `/api/vehicles/:id/purchase` | any user | Buy one unit; returns `{ vehicle, purchase }` |
 | POST | `/api/vehicles/:id/restock` | admin | Body `{ "amount": 5 }` |
+| GET | `/api/purchases/mine` | any user | My purchases, newest first |
 | GET | `/api/health` | public | Liveness check |
 
 A vehicle is `{ id, make, model, category, price, quantity, createdAt, updatedAt }`.
@@ -196,10 +200,10 @@ curl -s -X POST http://localhost:5000/api/vehicles/1/purchase \
 ```
 
 ## Testing and TDD
-The backend was developed in red → green → refactor cycles, one feature at a time: auth, then middleware and vehicle CRUD, then search, then purchase and restock. The git history shows each cycle as a `test:` commit (failing tests), a `feat:` commit (making them pass) and, where it applied, a `refactor:` commit. See [My AI Usage](#my-ai-usage) for how the history was produced.
+The repository starts with a baseline commit holding the first working version of the app and its test suite, written with Claude's help, so that early work is not red-green. After that, two backend features were built test-first: `GET /api/vehicles/:id` and `GET /api/purchases/mine`. In the git history each is a `test:` commit whose new tests fail, followed by a `feat:` commit that makes them pass, and a `refactor:` commit where I cleaned up (a repeated line, and a file-name typo). Two extra tests for existing behaviour (purchase history after a delete, and rollback on failure) pass immediately, so they are not red steps.
 
 - Tests call the real Express app through Supertest and a real PostgreSQL test database. Every test starts from empty tables.
-- Covered: validation, hashing, JWT (missing, malformed, expired, forged, wrong role), admin authorization, search filters (including `%` treated literally), stock handling, purchase records, restock rules and concurrent purchases.
+- Covered: validation, hashing, JWT (missing, malformed, expired, forged, wrong role), admin authorization, search filters (including `%` treated literally), stock handling, purchase records, restock rules, concurrent purchases and purchase history.
 
 Run them:
 ```bash
@@ -213,21 +217,22 @@ Full output of `npm run coverage`: [`test-reports/backend-coverage.txt`](test-re
 
 | Metric | Result |
 |---|---|
-| Test files | 5 passed, 0 failed |
-| Tests | 74 passed, 0 failed, 0 skipped |
-| Statements | 95.69% |
-| Branches | 87.5% |
+| Test files | 6 passed, 0 failed |
+| Tests | 85 passed, 0 failed, 0 skipped |
+| Statements | 98.02% |
+| Branches | 90.24% |
 | Functions | 100% |
-| Lines | 96.17% |
-| Duration | TODO-FILL (copy from your run) |
+| Lines | 98.83% |
+| Duration | TODO-FILL (the same number as in the test report) |
 
 | Test file | Tests | Covers |
 |---|---|---|
-| `auth.test.ts` | 17 | registration, password hashing, login, health, 404 |
+| `auth.test.ts` | 18 | registration, password hashing, login, health, 404 |
 | `middleware.test.ts` | 8 | token checks, admin authorization |
-| `vehicles.test.ts` | 20 | add, list, update, delete and their validation |
+| `vehicles.test.ts` | 25 | add, list, get one, update, delete and their validation |
 | `search.test.ts` | 13 | every filter, combinations, bad input |
-| `inventory.test.ts` | 16 | purchase, restock, concurrency, purchase history |
+| `inventory.test.ts` | 17 | purchase, restock, concurrency, rollback, purchase history |
+| `purchases.test.ts` | 4 | my purchases: auth, empty list, isolation and ordering, deleted vehicle |
 
 ## Screenshots
 
@@ -262,14 +267,14 @@ I used **Claude** (Anthropic, through claude.ai) for this project. [EDIT: add an
 
 ### How I used it
 - **Planning.** I pasted the kata brief and asked Claude for a step-by-step plan. We agreed on the stack (Node, TypeScript, Express, PostgreSQL, React, Tailwind, Vitest) and the order of work.
-- **Backend code and tests.** Claude generated the first version of the API (auth, vehicles, search, purchase, restock), the SQL schema, the seed script and the test suite. I ran everything on my own machine with a local PostgreSQL install.
+- **Backend code and tests.** Claude generated the first version of the API (auth, vehicles, search, purchase, restock), the SQL schema, the seed script and the test suite. I ran everything on my own machine with a local PostgreSQL install. Later, Claude drafted the tests for two extra endpoints, which I committed and ran before writing the code.
 - **Design choices it proposed.** Atomic stock updates, a purchase-history table, ignoring any `role` sent at registration, and a concurrency test. [EDIT: say which of these you understood and agreed with, and why.]
 - **Frontend.** Claude built the React and Tailwind screens, the card design with car illustrations, search chips, dark mode and the logout confirmation. I tested them in the browser and asked for changes when something looked wrong (for example the banner overlapping a button, and browser password pop-ups on the login form).
 - **Debugging.** I pasted terminal errors and screenshots into the chat. Examples: a leftover Prisma `.env`, a missing `.env.test` that Vitest hid behind a confusing startup error, and database password setup on Windows.
 - **Git history.** I had Claude help me plan the commit sequence and write the commit messages. Every AI-assisted commit has a `Co-authored-by` trailer.
 
 ### How I handled TDD with AI
-The tests and the implementation were first drafted together with Claude. To show the red-green-refactor cycle, I then rebuilt the repository history feature by feature: I committed the tests, ran them to confirm they failed, added the implementation, ran them to confirm they passed, and committed again. The history is therefore a faithful record of those test runs on my machine, but it is not the order in which the code was originally written. [EDIT: mention anything you wrote or changed test-first yourself.]
+The first version of the app and its tests was drafted together with Claude and committed as a baseline, so that early history is not red-green. After that I added two backend features test-first: I had Claude draft the failing tests, ran them to watch them fail, committed them, then wrote the minimum code to pass and refactored. [EDIT: say how much you wrote or changed yourself, and what you learned.]
 
 ### What I checked, changed or rejected
 - [EDIT: for example, "I read each test and the SQL for the purchase query, and can explain why `WHERE quantity > 0` prevents overselling."]
@@ -287,5 +292,6 @@ The tests and the implementation were first drafted together with Claude. To sho
 - JWT in `localStorage`; no refresh tokens (HTTP-only cookies would be safer)
 - No rate limiting on login
 - Purchases are one unit at a time; there is no cart or checkout
+- `GET /api/vehicles/:id` and `GET /api/purchases/mine` are not used by the frontend yet
 - No frontend automated tests
 - No CI pipeline and no live deployment yet
