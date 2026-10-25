@@ -114,3 +114,31 @@ describe('DELETE /api/vehicles/:id', () => {
     expect((await api().delete(`/api/vehicles/${car.id}`).set(bearer(admin.token))).status).toBe(204);
   });
 });
+
+
+describe('GET /api/vehicles/:id', () => {
+  it('returns one vehicle', async () => {
+    const { token } = await createUser('USER');
+    const car = await createVehicle({ make: 'Kia', model: 'Seltos' });
+    const res = await api().get(`/api/vehicles/${car.id}`).set(bearer(token));
+    expect(res.status).toBe(200);
+    expect(res.body.vehicle).toMatchObject({ id: car.id, make: 'Kia', model: 'Seltos' });
+  });
+
+  it('404 with "Vehicle not found" for an unknown id', async () => {
+    const { token } = await createUser('USER');
+    const res = await api().get('/api/vehicles/9999').set(bearer(token));
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Vehicle not found');
+  });
+
+  it('400 for an invalid id', async () => {
+    const { token } = await createUser('USER');
+    expect((await api().get('/api/vehicles/abc').set(bearer(token))).status).toBe(400);
+  });
+
+  it('401 without a token', async () => {
+    const car = await createVehicle();
+    expect((await api().get(`/api/vehicles/${car.id}`)).status).toBe(401);
+  });
+});
