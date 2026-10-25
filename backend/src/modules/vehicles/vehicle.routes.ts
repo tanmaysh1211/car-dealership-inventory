@@ -21,6 +21,11 @@ vehicleRouter.get('/search', async (req, res) => {
   res.json({ vehicles: await service.searchVehicles(validate(searchSchema, req.query)) });
 });
 
+vehicleRouter.get('/:id', async (req, res) => {
+  const { id } = validate(idParamSchema, req.params);
+  res.json({ vehicle: await service.getVehicle(id) });
+});
+
 vehicleRouter.post('/', authorizeAdmin, async (req, res) => {
   res.status(201).json({ vehicle: await service.createVehicle(validate(createVehicleSchema, req.body)) });
 });

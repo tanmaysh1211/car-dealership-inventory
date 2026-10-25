@@ -8,6 +8,12 @@ export const createVehicle = (data: CreateVehicle) => repo.insert(data);
 export const listVehicles = () => repo.findAll();
 export const searchVehicles = (filters: SearchFilters) => repo.search(filters);
 
+export async function getVehicle(id: number) {
+  const vehicle = await repo.findById(id);
+  if (!vehicle) throw notFound();
+  return vehicle;
+}
+
 export async function updateVehicle(id: number, changes: UpdateVehicle) {
   const vehicle = await repo.update(id, changes);
   if (!vehicle) throw notFound();
