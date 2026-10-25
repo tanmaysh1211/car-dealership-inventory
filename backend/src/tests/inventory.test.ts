@@ -59,10 +59,60 @@ describe('POST /api/vehicles/:id/purchase', () => {
 
     const { rows } = await pool.query('SELECT quantity FROM vehicles WHERE id = $1', [car.id]);
     expect(rows[0].quantity).toBe(0);
+    
     const purchases = await pool.query('SELECT COUNT(*)::int AS n FROM purchases');
     expect(purchases.rows[0].n).toBe(3);
   });
+
+  it('rolls back the stock decrement if recording the purchase fails', async () => {
+    const { token } = await createUser('USER');
+    const car = await createVehicle({ quantity: 2 });
+
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION reject_purchase_for_test()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        RAISE EXCEPTION 'Simulated purchase insert failure';
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    await pool.query(`
+      CREATE TRIGGER reject_purchase_for_test_trigger
+      BEFORE INSERT ON purchases
+      FOR EACH ROW
+      EXECUTE FUNCTION reject_purchase_for_test();
+    `);
+
+    try {
+      const response = await api()
+        .post(`/api/vehicles/${car.id}/purchase`)
+        .set(bearer(token));
+
+      expect(response.status).toBe(500);
+
+      const vehicleResult = await pool.query(
+        'SELECT quantity FROM vehicles WHERE id = $1',
+        [car.id],
+      );
+
+      const purchaseResult = await pool.query(
+        'SELECT COUNT(*)::int AS count FROM purchases',
+      );
+
+      expect(vehicleResult.rows[0].quantity).toBe(2);
+      expect(purchaseResult.rows[0].count).toBe(0);
+    } finally {
+      await pool.query(
+        'DROP TRIGGER IF EXISTS reject_purchase_for_test_trigger ON purchases',
+      );
+      await pool.query(
+        'DROP FUNCTION IF EXISTS reject_purchase_for_test()',
+      );
+    }
+  });
 });
+
 
 describe('POST /api/vehicles/:id/restock', () => {
   it('lets an admin increase stock', async () => {
@@ -99,3 +149,34 @@ describe('POST /api/vehicles/:id/restock', () => {
     expect((await api().post('/api/vehicles/9999/restock').set(bearer(token)).send({ amount: 1 })).status).toBe(404);
   });
 });
+
+
+describe('Purchase history integrity', () => {
+  it('preserves purchase history and clears vehicle_id when a vehicle is deleted', async () => {
+    const admin = await createUser('ADMIN');
+    const buyer = await createUser('USER');
+    const car = await createVehicle({ price: 18000, quantity: 1 });
+
+    const purchaseResponse = await api()
+      .post(`/api/vehicles/${car.id}/purchase`)
+      .set(bearer(buyer.token));
+
+    expect(purchaseResponse.status).toBe(201);
+
+    const deleteResponse = await api()
+      .delete(`/api/vehicles/${car.id}`)
+      .set(bearer(admin.token));
+
+    expect(deleteResponse.status).toBe(204);
+
+    const { rows } = await pool.query(
+      'SELECT user_id, vehicle_id, unit_price FROM purchases WHERE user_id = $1',
+      [buyer.user.id],
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].vehicle_id).toBeNull();
+    expect(Number(rows[0].unit_price)).toBe(18000);
+  });
+});
+
